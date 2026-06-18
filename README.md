@@ -34,4 +34,4 @@ If you're a student, fellow educator, or just someone learning cybersecurity —
 ## 📫 Connect
 
 - 💼 [LinkedIn](https://linkedin.com/in/mufthi-thanzeel)
-- 📧 mufthi.thanzeel@gmail.com
+  
