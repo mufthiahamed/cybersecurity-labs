@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>OSINT Framework</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f8fafc;--surface:#fff;--surface2:#f1f5f9;--border:#e2e8f0;--border2:#cbd5e1;
+  --text:#334155;--muted:#94a3b8;--head:#0f172a;
+  --blue:#3b82f6;--purple:#8b5cf6;--green:#10b981;--red:#ef4444;
+  --orange:#f97316;--teal:#14b8a6;--amber:#f59e0b;
+  --mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif;
+}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:40px 40px;opacity:0.35;}
+
+/* NAV */
+nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.95);backdrop-filter:blur(12px);
+  border-bottom:1.5px solid var(--border);padding:0 24px;
+  display:flex;align-items:center;gap:16px;height:56px;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);}
+.nav-logo{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--head);
+  display:flex;align-items:center;gap:8px;}
+.nav-logo .dot{width:9px;height:9px;border-radius:50%;background:var(--blue);
+  animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.4)}}
+.nav-badge{font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:10px;
+  background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.2);}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.nav-stat{font-family:var(--mono);font-size:11px;color:var(--muted);}
+
+/* LAYOUT */
+.wrap{max-width:1100px;margin:0 auto;padding:32px 24px;position:relative;z-index:1;}
+
+/* SCAN FORM */
+.scan-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;
+  padding:28px 32px;margin-bottom:32px;box-shadow:0 2px 12px rgba(0,0,0,.04);}
+.scan-card h2{font-size:17px;font-weight:700;color:var(--head);margin-bottom:6px;}
+.scan-card p{color:var(--muted);font-size:13px;margin-bottom:22px;}
+.form-row{display:flex;gap:10px;flex-wrap:wrap;}
+.form-row input{flex:1;min-width:200px;background:var(--surface2);border:1.5px solid var(--border);
+  border-radius:9px;padding:11px 16px;color:var(--head);font-family:var(--mono);font-size:13px;
+  outline:none;transition:all .2s;}
+.form-row input:focus{border-color:var(--blue);background:var(--surface);box-shadow:0 0 0 3px rgba(59,130,246,.1);}
+.form-row input::placeholder{color:var(--muted);}
+.type-group{display:flex;gap:6px;flex-wrap:wrap;}
+.type-btn{font-family:var(--mono);font-size:11px;padding:9px 16px;border-radius:8px;
+  border:1.5px solid var(--border);background:var(--surface2);color:var(--muted);
+  cursor:pointer;transition:all .15s;font-weight:600;letter-spacing:.04em;}
+.type-btn:hover{border-color:var(--blue);color:var(--blue);}
+.type-btn.active{background:var(--blue);color:#fff;border-color:var(--blue);
+  box-shadow:0 2px 8px rgba(59,130,246,.3);}
+.go-btn{background:var(--blue);color:#fff;border:none;font-family:var(--mono);
+  font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:11px 28px;border-radius:9px;cursor:pointer;transition:all .15s;
+  box-shadow:0 2px 8px rgba(59,130,246,.3);white-space:nowrap;}
+.go-btn:hover{background:#2563eb;transform:translateY(-1px);box-shadow:0 4px 16px rgba(59,130,246,.4);}
+.go-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+
+/* MODULES INFO */
+.modules-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;}
+.mod-pill{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:8px;
+  border:1.5px solid var(--border);background:var(--surface2);font-size:11px;font-family:var(--mono);}
+.mod-pill .dot{width:7px;height:7px;border-radius:50%;}
+
+/* SECTION HEADER */
+.sec-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.sec-title{font-size:14px;font-weight:700;color:var(--head);}
+.sec-count{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--surface2);
+  padding:3px 10px;border-radius:8px;border:1px solid var(--border);}
+
+/* SCAN TABLE */
+.scan-table{width:100%;border-collapse:collapse;background:var(--surface);
+  border:1.5px solid var(--border);border-radius:12px;overflow:hidden;
+  box-shadow:0 1px 6px rgba(0,0,0,.04);}
+.scan-table thead tr{background:var(--surface2);border-bottom:1.5px solid var(--border);}
+.scan-table th{padding:11px 16px;text-align:left;font-size:11px;font-weight:600;
+  font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);}
+.scan-table td{padding:13px 16px;font-size:13px;border-bottom:1px solid var(--border);}
+.scan-table tr:last-child td{border-bottom:none;}
+.scan-table tbody tr:hover{background:rgba(59,130,246,.02);}
+.target-cell{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--head);}
+.type-tag{font-family:var(--mono);font-size:10px;padding:3px 9px;border-radius:6px;font-weight:600;}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;}
+.status-done{color:var(--green);}.status-dot.done{background:var(--green);}
+.status-running{color:var(--blue);}.status-dot.running{background:var(--blue);animation:pulse 1s infinite;}
+.status-error{color:var(--red);}.status-dot.error{background:var(--red);}
+.status-stopped{color:var(--orange);}.status-dot.stopped{background:var(--orange);}
+.action-link{font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:7px;
+  border:1.5px solid var(--border);background:var(--surface2);color:var(--text);
+  text-decoration:none;transition:all .15s;display:inline-block;}
+.action-link:hover{border-color:var(--blue);color:var(--blue);background:rgba(59,130,246,.05);}
+.del-btn{font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:7px;
+  border:1.5px solid rgba(239,68,68,.25);background:rgba(239,68,68,.05);color:var(--red);
+  cursor:pointer;transition:all .15s;margin-left:4px;}
+.del-btn:hover{background:rgba(239,68,68,.12);}
+.empty-state{text-align:center;padding:48px;color:var(--muted);font-family:var(--mono);font-size:12px;line-height:2.4;}
+.empty-icon{font-size:40px;display:block;margin-bottom:12px;}
+
+/* TYPE COLORS */
+.tag-username{background:rgba(139,92,246,.1);color:#7c3aed;border:1px solid rgba(139,92,246,.25);}
+.tag-email{background:rgba(239,68,68,.1);color:#dc2626;border:1px solid rgba(239,68,68,.25);}
+.tag-domain{background:rgba(59,130,246,.1);color:#2563eb;border:1px solid rgba(59,130,246,.25);}
+.tag-ip{background:rgba(20,184,166,.1);color:#0d9488;border:1px solid rgba(20,184,166,.25);}
+.tag-phone{background:rgba(245,158,11,.1);color:#b45309;border:1px solid rgba(245,158,11,.25);}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;z-index:999;background:var(--head);color:#fff;
+  padding:12px 20px;border-radius:10px;font-family:var(--mono);font-size:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;transition:opacity .3s;pointer-events:none;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <div class="dot"></div>
+    OSINT Framework
+  </div>
+  <span class="nav-badge">v1.0 · Personal Lab</span>
+  <div class="nav-right">
+    <span class="nav-stat">{{ scans|length }} scan{{ 's' if scans|length != 1 }}</span>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <!-- SCAN FORM -->
+  <div class="scan-card">
+    <h2>New Scan</h2>
+    <p>Enter a target and select one or more scan types. Example: choose username + phone to search username details and phone-related web links.</p>
+    <div class="form-row">
+      <input id="target-input" type="text" placeholder="username / email / domain / IP" autocomplete="off"/>
+      <div class="type-group" id="type-group">
+        {% for t in target_types %}
+        <button class="type-btn {% if loop.first %}active{% endif %}" data-type="{{ t }}" onclick="toggleType(this)">{{ t }}</button>
+        {% endfor %}
+      </div>
+      <button class="go-btn" id="go-btn" onclick="startScan()">▶ Scan</button>
+    </div>
+    <div class="modules-row" id="module-pills">
+      <!-- filled by JS -->
+    </div>
+  </div>
+
+  <!-- SCAN HISTORY -->
+  <div>
+    <div class="sec-header">
+      <span class="sec-title">Scan History</span>
+      <span class="sec-count" id="scan-count">{{ scans|length }}</span>
+    </div>
+
+    <table class="scan-table" id="scan-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Target</th>
+          <th>Type</th>
+          <th>Results</th>
+          <th>Status</th>
+          <th>Started</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="scan-tbody">
+        {% if scans %}
+          {% for s in scans %}
+          <tr id="row-{{ s.id }}">
+            <td style="color:var(--muted);font-family:var(--mono);font-size:11px">{{ s.id }}</td>
+            <td class="target-cell">{{ s.target }}</td>
+            <td><span class="type-tag tag-{{ s.target_type }}">{{ s.target_type }}</span></td>
+            <td style="font-family:var(--mono);font-size:12px">{{ s.result_count }}</td>
+            <td>
+              <span class="status-dot {{ s.status }}"></span>
+              <span class="status-{{ s.status }}">{{ s.status }}</span>
+            </td>
+            <td style="color:var(--muted);font-size:12px">{{ s.created_at[:16] }}</td>
+            <td>
+              <a class="action-link" href="/scan/{{ s.id }}">View →</a>
+              <button class="del-btn" onclick="deleteScan({{ s.id }})">✕</button>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="7">
+            <div class="empty-state">
+              <span class="empty-icon">🕷️</span>
+              No scans yet — run your first scan above.
+            </div>
+          </td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const MODULE_MAP = {
+  username: [
+    {name:"github",  color:"#8b5cf6", label:"GitHub"},
+    {name:"reddit",  color:"#f97316", label:"Reddit"},
+    {name:"social",  color:"#3b82f6", label:"Social (20 platforms)"},
+  ],
+  email: [
+    {name:"breach",  color:"#ef4444", label:"Breach Check"},
+  ],
+  domain: [
+    {name:"whois",   color:"#0ea5e9", label:"WHOIS + crt.sh"},
+    {name:"dns",     color:"#10b981", label:"DNS Records"},
+    {name:"github",  color:"#8b5cf6", label:"GitHub"},
+    {name:"ip",      color:"#14b8a6", label:"IP Geolocation"},
+  ],
+  ip: [
+    {name:"ip",      color:"#14b8a6", label:"IP Geolocation"},
+  ],
+  phone: [
+    {name:"phone",   color:"#f59e0b", label:"Phone Lookup"},
+    {name:"web",     color:"#3b82f6", label:"Phone Web Search"},
+  ]
+};
+
+let selectedTypes = ["username"];
+
+function toggleType(btn) {
+  const type = btn.dataset.type;
+
+  if (btn.classList.contains("active")) {
+    if (selectedTypes.length === 1) {
+      showToast("Select at least one scan type");
+      return;
+    }
+
+    btn.classList.remove("active");
+    selectedTypes = selectedTypes.filter(t => t !== type);
+  } else {
+    btn.classList.add("active");
+    if (!selectedTypes.includes(type)) selectedTypes.push(type);
+  }
+
+  renderPills();
+  updatePlaceholder();
+}
+
+function updatePlaceholder() {
+  const ph = {
+    username: "john",
+    email: "user@example.com",
+    domain: "example.com",
+    ip: "8.8.8.8",
+    phone: "+61412345678"
+  };
+
+  document.getElementById("target-input").placeholder =
+    selectedTypes.length === 1
+      ? ph[selectedTypes[0]] || "target"
+      : "john / email / phone / domain / IP";
+}
+
+function renderPills() {
+  let mods = [];
+
+  selectedTypes.forEach(type => {
+    const list = MODULE_MAP[type] || [];
+    list.forEach(m => {
+      const key = `${type}:${m.name}`;
+      if (!mods.some(x => x.key === key)) {
+        mods.push({...m, key, type});
+      }
+    });
+  });
+
+  document.getElementById("module-pills").innerHTML = mods.map(m =>
+    `<div class="mod-pill"><span class="dot" style="background:${m.color}"></span>${m.type}: ${m.label}</div>`
+  ).join("");
+}
+
+renderPills();
+updatePlaceholder();
+
+async function startScan() {
+  const target = document.getElementById("target-input").value.trim();
+  if (!target) { showToast("Enter a target first"); return; }
+  const btn = document.getElementById("go-btn");
+  btn.disabled = true; btn.textContent = "Starting…";
+
+  try {
+    const r = await fetch("/api/scan/start", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        target,
+        target_type: selectedTypes[0],
+        target_types: selectedTypes
+      })
+    });
+    const d = await r.json();
+    if (d.scan_id) {
+      window.location.href = `/scan/${d.scan_id}`;
+    } else {
+      showToast("Error: " + (d.error || "Unknown"));
+      btn.disabled = false; btn.textContent = "▶ Scan";
+    }
+  } catch(e) {
+    showToast("Request failed: " + e.message);
+    btn.disabled = false; btn.textContent = "▶ Scan";
+  }
+}
+
+async function deleteScan(id) {
+  if (!confirm(`Delete scan #${id}?`)) return;
+  await fetch(`/api/scan/${id}/delete`, {method:"DELETE"});
+  const row = document.getElementById(`row-${id}`);
+  if (row) row.remove();
+  showToast(`Scan #${id} deleted`);
+}
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+document.getElementById("target-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") startScan();
+});
+</script>
+</body>
+</html>

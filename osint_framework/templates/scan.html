@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Scan #{{ scan.id }} — {{ scan.target }}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f8fafc;--surface:#fff;--surface2:#f1f5f9;--border:#e2e8f0;--border2:#cbd5e1;
+  --text:#334155;--muted:#94a3b8;--head:#0f172a;
+  --blue:#3b82f6;--purple:#8b5cf6;--green:#10b981;--red:#ef4444;
+  --orange:#f97316;--teal:#14b8a6;--amber:#f59e0b;
+  --mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif;
+}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:40px 40px;opacity:0.35;}
+
+/* NAV */
+nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.95);backdrop-filter:blur(12px);
+  border-bottom:1.5px solid var(--border);padding:0 24px;
+  display:flex;align-items:center;gap:12px;height:56px;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);}
+.nav-back{font-family:var(--mono);font-size:12px;color:var(--muted);text-decoration:none;
+  padding:6px 12px;border-radius:7px;border:1.5px solid var(--border);
+  background:var(--surface2);transition:all .15s;}
+.nav-back:hover{color:var(--blue);border-color:var(--blue);}
+.nav-title{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--head);}
+.nav-sub{font-family:var(--mono);font-size:11px;color:var(--muted);}
+.nav-right{margin-left:auto;display:flex;gap:8px;align-items:center;}
+
+/* PROGRESS BAR */
+.progress-wrap{height:3px;background:var(--border);position:relative;z-index:1;}
+.progress-bar{height:100%;background:linear-gradient(90deg,var(--blue),var(--purple));
+  width:0%;transition:width .5s ease;border-radius:0 2px 2px 0;}
+
+/* LAYOUT */
+.wrap{max-width:1200px;margin:0 auto;padding:28px 24px;position:relative;z-index:1;
+  display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:start;}
+@media(max-width:900px){.wrap{grid-template-columns:1fr;}}
+
+/* SIDEBAR */
+.sidebar{display:flex;flex-direction:column;gap:14px;position:sticky;top:76px;}
+.card{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;
+  padding:18px;box-shadow:0 1px 6px rgba(0,0,0,.04);}
+.card-title{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+
+/* scan info */
+.info-row{display:flex;flex-direction:column;gap:2px;margin-bottom:10px;}
+.info-row:last-child{margin-bottom:0;}
+.info-label{font-size:10px;color:var(--muted);font-weight:500;}
+.info-value{font-family:var(--mono);font-size:12px;color:var(--head);word-break:break-all;}
+
+/* status */
+.status-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);
+  font-size:11px;padding:5px 12px;border-radius:8px;font-weight:600;}
+.sb-done{background:rgba(16,185,129,.1);color:#059669;border:1px solid rgba(16,185,129,.25);}
+.sb-running{background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.25);}
+.sb-error{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.25);}
+.sb-stopped{background:rgba(249,115,22,.1);color:var(--orange);border:1px solid rgba(249,115,22,.25);}
+.pulse{width:7px;height:7px;border-radius:50%;background:currentColor;}
+.running .pulse{animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
+
+/* module list */
+.mod-item{display:flex;align-items:center;justify-content:space-between;
+  padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:all .15s;}
+.mod-item:last-child{border-bottom:none;}
+.mod-item:hover .mod-name{color:var(--blue);}
+.mod-item.active .mod-name{color:var(--blue);font-weight:700;}
+.mod-name{font-family:var(--mono);font-size:12px;color:var(--text);}
+.mod-count{font-family:var(--mono);font-size:10px;background:var(--surface2);
+  padding:2px 8px;border-radius:6px;color:var(--muted);border:1px solid var(--border);}
+
+/* summary pills */
+.sum-grid{display:flex;flex-direction:column;gap:6px;}
+.sum-item{display:flex;align-items:center;justify-content:space-between;
+  padding:7px 10px;border-radius:7px;background:var(--surface2);border:1px solid var(--border);
+  cursor:pointer;transition:all .15s;}
+.sum-item:hover{border-color:var(--border2);}
+.sum-item.active{border-color:var(--blue);background:rgba(59,130,246,.05);}
+.sum-type{font-family:var(--mono);font-size:11px;color:var(--text);}
+.sum-cnt{font-family:var(--mono);font-size:10px;color:var(--muted);}
+
+/* MAIN */
+.main{display:flex;flex-direction:column;gap:16px;}
+
+/* toolbar */
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.filter-input{flex:1;min-width:180px;background:var(--surface);border:1.5px solid var(--border);
+  border-radius:8px;padding:9px 14px;color:var(--head);font-family:var(--mono);
+  font-size:12px;outline:none;transition:all .2s;}
+.filter-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.1);}
+.filter-input::placeholder{color:var(--muted);}
+.clear-btn{font-family:var(--mono);font-size:11px;padding:9px 14px;border-radius:8px;
+  border:1.5px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;}
+.clear-btn:hover{color:var(--text);border-color:var(--border2);}
+.export-btn{font-family:var(--mono);font-size:11px;padding:9px 14px;border-radius:8px;
+  border:1.5px solid var(--border);background:var(--surface2);color:var(--text);
+  text-decoration:none;cursor:pointer;transition:all .15s;}
+.export-btn:hover{border-color:var(--blue);color:var(--blue);}
+.stop-btn{font-family:var(--mono);font-size:11px;font-weight:700;padding:9px 16px;
+  border-radius:8px;border:none;background:var(--red);color:#fff;cursor:pointer;}
+.stop-btn:hover{background:#dc2626;}
+
+/* RESULTS TABLE */
+.rtable-wrap{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;
+  overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.04);}
+.rtable{width:100%;border-collapse:collapse;}
+.rtable thead tr{background:var(--surface2);border-bottom:1.5px solid var(--border);}
+.rtable th{padding:10px 14px;text-align:left;font-size:10px;font-weight:600;
+  font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+.rtable td{padding:11px 14px;font-size:12px;border-bottom:1px solid var(--border);vertical-align:top;}
+.rtable tr:last-child td{border-bottom:none;}
+.rtable tbody tr:hover{background:rgba(59,130,246,.02);}
+.rtable tbody tr.hidden{display:none;}
+
+.dt-badge{font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:5px;
+  font-weight:600;white-space:nowrap;}
+.val-cell{font-family:var(--mono);font-size:12px;word-break:break-all;color:var(--head);}
+.val-cell a{color:var(--blue);text-decoration:none;}
+.val-cell a:hover{text-decoration:underline;}
+.src-cell{font-size:11px;color:var(--muted);}
+.mod-cell{font-family:var(--mono);font-size:10px;color:var(--muted);}
+
+/* data type colors */
+.dt-profile_url,.dt-social_profile,.dt-website,.dt-repository{background:rgba(59,130,246,.1);color:#2563eb;}
+.dt-email_address,.dt-breach_found,.dt-breach_source{background:rgba(239,68,68,.1);color:#dc2626;}
+.dt-breach_clean{background:rgba(16,185,129,.1);color:#059669;}
+.dt-full_name,.dt-company,.dt-location{background:rgba(139,92,246,.1);color:#7c3aed;}
+.dt-ip_address,.dt-asn,.dt-isp_org,.dt-coordinates{background:rgba(20,184,166,.1);color:#0d9488;}
+.dt-subdomain,.dt-nameserver,.dt-domain_status{background:rgba(249,115,22,.1);color:#c2410c;}
+.dt-dns_a,.dt-dns_mx,.dt-dns_txt,.dt-dns_ns,.dt-dns_aaaa,.dt-dns_cname,.dt-spf_record,.dt-dmarc_record{background:rgba(16,185,129,.1);color:#059669;}
+.dt-threat_intel,.dt-abuse_score{background:rgba(239,68,68,.1);color:#dc2626;}
+.dt-post_snippet,.dt-post_title,.dt-subreddit_activity{background:rgba(249,115,22,.1);color:#c2410c;}
+.dt-stat,.dt-account_created,.dt-account_detail{background:rgba(148,163,184,.1);color:#64748b;}
+.dt-not_found{background:rgba(148,163,184,.08);color:#94a3b8;}
+.dt-error{background:rgba(239,68,68,.08);color:#ef4444;}
+.dt-registrar,.dt-registered_date,.dt-expiry_date,.dt-updated_date{background:rgba(245,158,11,.1);color:#b45309;}
+
+/* running state */
+.scanning-notice{display:flex;align-items:center;gap:10px;padding:14px 18px;
+  background:rgba(59,130,246,.06);border:1.5px solid rgba(59,130,246,.2);
+  border-radius:10px;font-family:var(--mono);font-size:12px;color:var(--blue);}
+.spin{animation:spin 1s linear infinite;display:inline-block;}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+.results-count{font-family:var(--mono);font-size:11px;color:var(--muted);padding:10px 14px;
+  border-bottom:1px solid var(--border);background:var(--surface2);}
+
+.empty-results{padding:40px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:12px;}
+
+/* toast */
+.toast{position:fixed;bottom:24px;right:24px;z-index:999;background:var(--head);color:#fff;
+  padding:12px 20px;border-radius:10px;font-family:var(--mono);font-size:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;transition:opacity .3s;pointer-events:none;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-back" href="/">← Back</a>
+  <div>
+    <div class="nav-title">Scan #{{ scan.id }} — {{ scan.target }}</div>
+    <div class="nav-sub">{{ scan.target_type }} · started {{ scan.created_at[:16] }}</div>
+  </div>
+  <div class="nav-right">
+    {% if scan.status == 'running' %}
+    <button class="stop-btn" onclick="stopScan()">■ Stop</button>
+    {% endif %}
+    <a class="export-btn" href="/scan/{{ scan.id }}/graph" style="border-color:rgba(139,92,246,.4);color:#7c3aed;background:rgba(139,92,246,.06)">🕸 Graph</a>
+    <a class="export-btn" href="/scan/{{ scan.id }}/map" style="border-color:rgba(16,185,129,.4);color:#059669;background:rgba(16,185,129,.06)">🗺 Map</a>
+    <a class="export-btn" href="/api/scan/{{ scan.id }}/export?fmt=csv">↓ CSV</a>
+    <a class="export-btn" href="/api/scan/{{ scan.id }}/export?fmt=json">↓ JSON</a>
+  </div>
+</nav>
+
+<div class="progress-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+
+<div class="wrap">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <!-- status card -->
+    <div class="card">
+      <div class="card-title">Scan Info</div>
+      <div class="info-row">
+        <span class="info-label">Target</span>
+        <span class="info-value">{{ scan.target }}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Type</span>
+        <span class="info-value">{{ scan.target_type }}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Status</span>
+        <span class="status-badge sb-{{ scan.status }} {{ scan.status }}" id="status-badge">
+          <span class="pulse"></span>
+          <span id="status-text">{{ scan.status }}</span>
+        </span>
+      </div>
+      {% if scan.finished_at %}
+      <div class="info-row" style="margin-top:8px">
+        <span class="info-label">Finished</span>
+        <span class="info-value">{{ scan.finished_at[:16] }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- modules -->
+    <div class="card">
+      <div class="card-title">Modules</div>
+      <div id="module-list">
+        {% for m in modules %}
+        <div class="mod-item" onclick="filterByModule('{{ m.module }}')" data-mod="{{ m.module }}">
+          <span class="mod-name">{{ m.module }}</span>
+          <span class="mod-count">{{ m.cnt }}</span>
+        </div>
+        {% endfor %}
+        {% if not modules %}
+        <p style="color:var(--muted);font-family:var(--mono);font-size:11px">Waiting for results…</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- data types -->
+    <div class="card">
+      <div class="card-title">Data Types</div>
+      <div class="sum-grid" id="summary-list">
+        {% for s in summary %}
+        <div class="sum-item" onclick="filterByType('{{ s.data_type }}')" data-type="{{ s.data_type }}">
+          <span class="sum-type">{{ s.data_type }}</span>
+          <span class="sum-cnt">{{ s.cnt }}</span>
+        </div>
+        {% endfor %}
+        {% if not summary %}
+        <p style="color:var(--muted);font-family:var(--mono);font-size:11px">No data yet…</p>
+        {% endif %}
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main">
+
+    {% if scan.status == 'running' %}
+    <div class="scanning-notice" id="scanning-notice">
+      <span class="spin">⟳</span>
+      <span id="scan-status-msg">Scanning… results appear as modules complete</span>
+    </div>
+    {% endif %}
+
+    <div class="toolbar">
+      <input class="filter-input" id="filter-input" type="text" placeholder="Filter results…" oninput="filterResults()">
+      <button class="clear-btn" onclick="clearFilters()">Clear filters</button>
+    </div>
+
+    <div class="rtable-wrap">
+      <div class="results-count" id="results-count">
+        Loading results…
+      </div>
+      <table class="rtable">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Value</th>
+            <th>Source</th>
+            <th>Module</th>
+          </tr>
+        </thead>
+        <tbody id="results-tbody">
+          <tr><td colspan="4"><div class="empty-results">Loading…</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SCAN_ID = {{ scan.id }};
+const INITIAL_STATUS = "{{ scan.status }}";
+
+let allResults = [];
+let activeModule = null;
+let activeType = null;
+let filterText = "";
+let polling = null;
+
+// ── Data type → color class ───────────────────────────────────────────────────
+function dtClass(dt) {
+  return "dt-" + dt.replace(/[^a-z0-9_]/g,"_");
+}
+
+// ── Render results ────────────────────────────────────────────────────────────
+function renderResults(results) {
+  const tbody = document.getElementById("results-tbody");
+  if (!results.length) {
+    tbody.innerHTML = '<tr><td colspan="4"><div class="empty-results">No results match the current filter.</div></td></tr>';
+    document.getElementById("results-count").textContent = "0 results";
+    return;
+  }
+
+  tbody.innerHTML = results.map(r => {
+    const val = isURL(r.value)
+      ? `<a href="${r.value}" target="_blank">${r.value}</a>`
+      : escHtml(r.value);
+    return `<tr data-module="${r.module}" data-type="${r.data_type}">
+      <td><span class="dt-badge ${dtClass(r.data_type)}">${r.data_type}</span></td>
+      <td class="val-cell">${val}</td>
+      <td class="src-cell">${escHtml(r.source||"")}</td>
+      <td class="mod-cell">${escHtml(r.module)}</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("results-count").textContent =
+    `${results.length} result${results.length!==1?"s":""}` +
+    (activeModule ? ` · module: ${activeModule}` : "") +
+    (activeType   ? ` · type: ${activeType}`   : "") +
+    (filterText   ? ` · "${filterText}"`        : "");
+}
+
+function filteredResults() {
+  return allResults.filter(r => {
+    if (activeModule && r.module !== activeModule) return false;
+    if (activeType   && r.data_type !== activeType) return false;
+    if (filterText) {
+      const q = filterText.toLowerCase();
+      return r.value.toLowerCase().includes(q) ||
+             r.module.toLowerCase().includes(q) ||
+             r.data_type.toLowerCase().includes(q) ||
+             (r.source||"").toLowerCase().includes(q);
+    }
+    return true;
+  });
+}
+
+function filterResults() {
+  filterText = document.getElementById("filter-input").value;
+  renderResults(filteredResults());
+}
+
+function filterByModule(mod) {
+  activeModule = (activeModule === mod) ? null : mod;
+  activeType = null;
+  document.querySelectorAll(".mod-item").forEach(el => {
+    el.classList.toggle("active", el.dataset.mod === activeModule);
+  });
+  document.querySelectorAll(".sum-item").forEach(el => el.classList.remove("active"));
+  renderResults(filteredResults());
+}
+
+function filterByType(type) {
+  activeType = (activeType === type) ? null : type;
+  activeModule = null;
+  document.querySelectorAll(".sum-item").forEach(el => {
+    el.classList.toggle("active", el.dataset.type === activeType);
+  });
+  document.querySelectorAll(".mod-item").forEach(el => el.classList.remove("active"));
+  renderResults(filteredResults());
+}
+
+function clearFilters() {
+  activeModule = null; activeType = null; filterText = "";
+  document.getElementById("filter-input").value = "";
+  document.querySelectorAll(".mod-item,.sum-item").forEach(el => el.classList.remove("active"));
+  renderResults(allResults);
+}
+
+// ── Fetch & poll ──────────────────────────────────────────────────────────────
+async function fetchResults() {
+  try {
+    const r = await fetch(`/api/scan/${SCAN_ID}/results`);
+    const d = await r.json();
+    allResults = d.results;
+    renderResults(filteredResults());
+    updateSidebar(d.summary, d.modules);
+  } catch(e) {}
+}
+
+function updateSidebar(summary, modules) {
+  // modules
+  const modList = document.getElementById("module-list");
+  if (modules.length) {
+    modList.innerHTML = modules.map(m =>
+      `<div class="mod-item ${activeModule===m.module?'active':''}" onclick="filterByModule('${m.module}')" data-mod="${m.module}">
+        <span class="mod-name">${m.module}</span>
+        <span class="mod-count">${m.cnt}</span>
+      </div>`
+    ).join("");
+  }
+  // summary
+  const sumList = document.getElementById("summary-list");
+  if (summary.length) {
+    sumList.innerHTML = summary.map(s =>
+      `<div class="sum-item ${activeType===s.data_type?'active':''}" onclick="filterByType('${s.data_type}')" data-type="${s.data_type}">
+        <span class="sum-type">${s.data_type}</span>
+        <span class="sum-cnt">${s.cnt}</span>
+      </div>`
+    ).join("");
+  }
+}
+
+async function pollProgress() {
+  try {
+    const r = await fetch(`/api/scan/${SCAN_ID}/progress`);
+    const d = await r.json();
+    document.getElementById("progress-bar").style.width = d.pct + "%";
+
+    if (d.status === "running") {
+      document.getElementById("scan-status-msg").textContent =
+        d.current ? `Running module: ${d.current} (${d.done}/${d.total})` : "Scanning…";
+    } else {
+      // done/stopped/error
+      clearInterval(polling);
+      document.getElementById("progress-bar").style.width = "100%";
+      const notice = document.getElementById("scanning-notice");
+      if (notice) notice.remove();
+      // update status badge
+      const badge = document.getElementById("status-badge");
+      const clsMap = {done:"sb-done",stopped:"sb-stopped",error:"sb-error"};
+      badge.className = `status-badge ${clsMap[d.status]||"sb-done"}`;
+      document.getElementById("status-text").textContent = d.status;
+      // final result fetch
+      await fetchResults();
+    }
+  } catch(e) {}
+}
+
+async function stopScan() {
+  await fetch(`/api/scan/${SCAN_ID}/stop`, {method:"POST"});
+  showToast("Scan stopped");
+  clearInterval(polling);
+  await fetchResults();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function isURL(str) {
+  return /^https?:\/\//i.test(str);
+}
+function escHtml(str) {
+  return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+fetchResults();
+if (INITIAL_STATUS === "running") {
+  polling = setInterval(async () => {
+    await fetchResults();
+    await pollProgress();
+  }, 2000);
+}
+</script>
+</body>
+</html>

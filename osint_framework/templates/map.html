@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Map View — Scan #{{ scan.id }}</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+        nav {
+            height: 52px;
+            background: #0f172a;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 0 18px;
+            z-index: 1000;
+            position: relative;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            background: #1e293b;
+            padding: 7px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        nav a:hover { background: #334155; }
+        nav strong { font-size: 14px; }
+
+        #map {
+            height: calc(100vh - 52px);
+            width: 100%;
+        }
+
+        #panel {
+            position: fixed;
+            top: 70px;
+            right: 18px;
+            width: 300px;
+            max-height: 75vh;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            z-index: 999;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+        }
+
+        #panel h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .loc-item {
+            border-bottom: 1px solid #f1f5f9;
+            padding: 8px 0;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .loc-item:hover { background: #f8fafc; border-radius: 6px; padding: 8px 4px; }
+        .loc-item:last-child { border-bottom: none; }
+
+        .loc-type {
+            font-weight: 600;
+            color: #2563eb;
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+        .loc-label { color: #1e293b; font-weight: 500; }
+        .loc-meta { color: #94a3b8; font-size: 11px; margin-top: 2px; }
+
+        .status-bar {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 10px;
+            padding: 6px 8px;
+            background: #f8fafc;
+            border-radius: 6px;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-size: 13px;
+            padding: 8px 0;
+        }
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid #e2e8f0;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .badge {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-left: 6px;
+        }
+        .empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 20px 0; }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="/scan/{{ scan.id }}">← Table</a>
+    <a href="/scan/{{ scan.id }}/graph">Graph</a>
+    <strong>Map View — Scan #{{ scan.id }} {{ scan.target }}</strong>
+</nav>
+
+<div id="map"></div>
+
+<div id="panel">
+    <h3>Locations <span class="badge" id="count">0</span></h3>
+    <div id="status" class="status-bar">Loading scan data…</div>
+    <div id="locations">
+        <div class="loading"><div class="spinner"></div> Fetching locations…</div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+const SCAN_ID = {{ scan.id }};
+
+const map = L.map('map').setView([-25.2744, 133.7751], 4);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap'
+}).addTo(map);
+
+const markers = [];
+let plotted = 0;
+
+// ── Try to parse raw lat/lon from strings like "37.77, -122.41" ──────────────
+function parseCoords(str) {
+    const m = str.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
+    if (m) {
+        const lat = parseFloat(m[1]);
+        const lon = parseFloat(m[2]);
+        if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+            return { lat, lon };
+        }
+    }
+    return null;
+}
+
+// ── Geocode a location string via Nominatim ───────────────────────────────────
+async function geocode(location) {
+    try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(location)}`;
+        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+        const data = await res.json();
+        if (data && data.length > 0) {
+            return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+        }
+    } catch (e) {}
+    return null;
+}
+
+// ── Add a marker to the map ───────────────────────────────────────────────────
+function addMarker(lat, lon, loc) {
+    const icon = L.divIcon({
+        className: '',
+        html: `<div style="
+            background:#2563eb;
+            width:12px;height:12px;
+            border-radius:50%;
+            border:2px solid white;
+            box-shadow:0 1px 4px rgba(0,0,0,0.4)">
+        </div>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6]
+    });
+
+    const marker = L.marker([lat, lon], { icon }).addTo(map);
+    marker.bindPopup(`
+        <div style="font-size:13px;min-width:180px">
+            <strong>${loc.label}</strong><br>
+            <span style="color:#64748b;font-size:11px">
+                Type: ${loc.type}<br>
+                Source: ${loc.source || 'N/A'}<br>
+                Module: ${loc.module || 'N/A'}
+            </span>
+        </div>
+    `);
+    markers.push(marker);
+    plotted++;
+    document.getElementById('count').textContent = plotted;
+    return marker;
+}
+
+// ── Fit map to all markers ────────────────────────────────────────────────────
+function fitMarkers() {
+    if (markers.length > 0) {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.3));
+    }
+}
+
+// ── Build sidebar item ────────────────────────────────────────────────────────
+function buildItem(loc, marker) {
+    const div = document.createElement('div');
+    div.className = 'loc-item';
+    div.innerHTML = `
+        <div class="loc-type">${loc.type}</div>
+        <div class="loc-label">${loc.label}</div>
+        <div class="loc-meta">${loc.module || ''} · ${loc.source || ''}</div>
+    `;
+    if (marker) {
+        div.addEventListener('click', () => {
+            map.setView(marker.getLatLng(), 10);
+            marker.openPopup();
+        });
+    }
+    return div;
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+async function loadMapData() {
+    const statusEl    = document.getElementById('status');
+    const locationsEl = document.getElementById('locations');
+
+    try {
+        const res  = await fetch(`/api/scan/${SCAN_ID}/map-data`);
+        const data = await res.json();
+
+        locationsEl.innerHTML = '';
+
+        if (!data.locations || data.locations.length === 0) {
+            statusEl.textContent = 'No location data in this scan.';
+            locationsEl.innerHTML = `
+                <div class="empty">
+                    No location data found.<br><br>
+                    Try scanning an <strong>IP address</strong> or <strong>domain</strong>
+                    to see geographic data on the map.
+                </div>`;
+            return;
+        }
+
+        statusEl.textContent = `Found ${data.locations.length} location(s) — plotting…`;
+
+        for (const loc of data.locations) {
+            let marker = null;
+
+            // Use server-pre-geocoded lat/lon directly
+            if (loc.lat !== null && loc.lon !== null) {
+                marker = addMarker(loc.lat, loc.lon, loc);
+            }
+
+            locationsEl.appendChild(buildItem(loc, marker));
+        }
+
+        if (plotted === 0) {
+            statusEl.textContent = 'Could not map any locations.';
+            locationsEl.innerHTML += `<div class="empty">Locations found but none could be mapped.</div>`;
+        } else {
+            statusEl.textContent = `Mapped ${plotted} of ${data.locations.length} location(s)`;
+            fitMarkers();
+        }
+
+    } catch (e) {
+        statusEl.textContent = 'Error loading map data.';
+        locationsEl.innerHTML = `<div class="empty">Failed to load: ${e.message}</div>`;
+    }
+}
+
+loadMapData();
+</script>
+</body>
+</html>
